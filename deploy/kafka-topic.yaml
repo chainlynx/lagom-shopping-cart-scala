@@ -1,0 +1,14 @@
+apiVersion: kafka.strimzi.io/v1beta1
+kind: KafkaTopic
+metadata:
+  name: shopping-cart
+  namespace: shopping-cart-kafka
+  labels:
+    app.kubernetes.io/managed-by: strimzi
+    app.kubernetes.io/name: shopping-cart
+    app.kubernetes.io/part-of: shopping-cart
+    strimzi.io/cluster: shopping-cart-kafka-cluster
+spec:
+  partitions: 3
+  replicas: 2
+  topicName: shopping-cart

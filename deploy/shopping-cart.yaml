@@ -1,0 +1,121 @@
+apiVersion: "apps/v1"
+kind: Deployment
+metadata:
+  name: shopping-cart
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: shopping-cart
+
+  template:
+    metadata:
+      #annotations:
+        #"prometheus.io/scrape": "true"
+        #"prometheus.io/port": "9001"
+      labels:
+        app: shopping-cart
+        actorSystemName: shopping-cart-scala
+    spec:
+      containers:
+        - name: shopping-cart
+          image: "gcr.io/gsa-sandbox-249915/shopping-cart/shopping-cart:latest"
+          env:
+            - name: JAVA_OPTS
+              value: "-Xms256m -Xmx256m -Dconfig.resource=prod-application.conf"
+            - name: APPLICATION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: shopping-cart-application-secret
+                  key: secret
+            - name: POSTGRESQL_URL
+              #value: "jdbc:postgresql://postgresql-postgresql-svc/shopping_cart"
+              value: "jdbc:postgresql://shopping-cart-postgres/shopping_cart"
+              #value: "jdbc:postgresql://postgresql/shopping_cart_database"
+            - name: POSTGRESQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: shopping-cart-postgres-shopping-cart-secret
+                  key: username
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shopping-cart-postgres-shopping-cart-secret
+                  key: password
+            - name: KAFKA_SERVICE_NAME
+              #value: "_clients._tcp.strimzi-kafka-brokers"
+              #value: "_tcp-clients._tcp.strimzi-kafka-brokers"
+              value: "_tcp-clients._tcp.shopping-cart-kafka-cluster-kafka-brokers.shopping-cart-kafka.svc"
+              #value: "_tcp-clients._tcp.shopping-kafka-kafka-brokers.shopping-cart.svc"
+              #value: "_tcp-clients._tcp.strimzi-kafka-brokers.strimzi.svc"
+              #value: "_clients._tcp.strimzi-kafka-bootstrap"
+              #value: "_clients._tcp.strimzi-kafka-brokers.shopping-cart.svc.cluster.local"
+              #value: "_tcp-clients._tcp.cloudflow-kafka-brokers.cloudflow.svc"
+              #value: "_tcp-clients._tcp.cloudflow-kafka-brokers.cloudflow.svc"
+              #value: "_clients._tcp.strimzi-kafka-brokers.shopping-cart.svc.cluster.local"
+            - name: REQUIRED_CONTACT_POINT_NR
+              value: "3"
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 0.25
+              memory: 512Mi
+          ports:
+            - name: remoting
+              containerPort: 2552
+              protocol: TCP
+            - name: management
+              containerPort: 8558
+              protocol: TCP
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+            #- name: prometheus
+            #  containerPort: 9001
+            #  protocol: TCP
+            #- name: datadog
+            #  containerPort: 8125
+            #  protocol: UDP
+          readinessProbe:
+            httpGet:
+              path: "/ready"
+              port: management
+            periodSeconds: 10
+            failureThreshold: 10
+            initialDelaySeconds: 20
+          livenessProbe:
+            httpGet:
+              path: "/alive"
+              port: management
+            periodSeconds: 10
+            failureThreshold: 10
+            initialDelaySeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopping-cart
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: shopping-cart.services.lightbend.solutions.
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 9000
+    - name: remoting
+      port: 2552
+      protocol: TCP
+      targetPort: 2552
+    - name: management
+      port: 8558
+      protocol: TCP
+      targetPort: 8558
+  selector:
+    app: shopping-cart
+  type: LoadBalancer
